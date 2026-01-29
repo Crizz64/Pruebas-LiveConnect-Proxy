@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>LiveConnect Inbox</title>
+
+  <style>
+    * { box-sizing: border-box; font-family: Arial, sans-serif; }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 30%;
+      border-right: 1px solid #ddd;
+      background: #f7f7f7;
+      overflow-y: auto;
+    }
+
+    .conversation {
+      padding: 15px;
+      border-bottom: 1px solid #e0e0e0;
+      cursor: pointer;
+    }
+
+    .conversation:hover {
+      background: #eaeaea;
+    }
+
+    .conversation.active {
+      background: #d1f7c4;
+    }
+
+    /* Chat */
+    #chat {
+      width: 70%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      background: #efeae2;
+    }
+
+    .msg {
+      max-width: 70%;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      clear: both;
+    }
+
+    .msg.user {
+      background: #ffffff;
+      float: left;
+    }
+
+    .msg.agent {
+      background: #dcf8c6;
+      float: right;
+    }
+
+    /* Input */
+    #input-box {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      background: #f0f0f0;
+    }
+
+    #input-box input {
+      flex: 1;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    #input-box button {
+      margin-left: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    #top-actions {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      background: #fafafa;
+      display: flex;
+      gap: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Conversaciones -->
+  <div id="sidebar"></div>
+
+  <!-- Chat -->
+  <div id="chat">
+    <div id="top-actions">
+      <button onclick="checkBalance()">Saldo</button>
+      <button onclick="sendQuickAnswer(55050)">QuickAnswer</button>
+      <button onclick="transferConversation()">Transferir</button>
+    </div>
+
+    <div id="messages"></div>
+
+    <div id="input-box">
+      <input id="messageInput" placeholder="Escribe un mensaje..." />
+      <button onclick="sendMessage()">Enviar</button>
+    </div>
+  </div>
+
+<script src="/static/main.js"></script>
+</body>
+</html>
