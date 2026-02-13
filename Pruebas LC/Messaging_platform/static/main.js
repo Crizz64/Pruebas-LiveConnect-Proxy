@@ -18,25 +18,53 @@ function renderConfigStatus(text, isError = false) {
   statusEl.className = isError ? "error" : "ok";
 }
 
-function getBalanceValue(payload) {
-  if (!payload || typeof payload !== "object") return null;
+function toNumeric(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
 
-  const direct = payload.balance;
-  if (typeof direct === "number") return direct;
+  const normalized = value
+    .replace(/[^0-9,.-]/g, "")
+    .replace(/\.(?=.*\.)/g, "")
+    .replace(",", ".");
 
-  if (payload.data && typeof payload.data.balance === "number") {
-    return payload.data.balance;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function findAmountDeep(node, depth = 0) {
+  if (depth > 8 || node === null || node === undefined) return null;
+
+  const direct = toNumeric(node);
+  if (direct !== null) return direct;
+
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = findAmountDeep(item, depth + 1);
+      if (found !== null) return found;
+    }
+    return null;
   }
 
-  if (
-    payload.result &&
-    payload.result.data &&
-    typeof payload.result.data.balance === "number"
-  ) {
-    return payload.result.data.balance;
+  if (typeof node !== "object") return null;
+
+  const preferredKeys = ["balance", "saldo", "available_balance", "amount"];
+  for (const key of preferredKeys) {
+    if (Object.prototype.hasOwnProperty.call(node, key)) {
+      const found = findAmountDeep(node[key], depth + 1);
+      if (found !== null) return found;
+    }
+  }
+
+  for (const value of Object.values(node)) {
+    const found = findAmountDeep(value, depth + 1);
+    if (found !== null) return found;
   }
 
   return null;
+}
+
+function getBalanceValue(payload) {
+  return findAmountDeep(payload);
 }
 
 function getChannelTypeLabel(tipo) {
@@ -291,11 +319,15 @@ async function consultBalance() {
 
     if (balance === null) {
       display.innerText = "No se pudo obtener un valor de saldo válido.";
-      renderConfigStatus("No se pudo interpretar el balance de la API.", true);
+      const debug = document.getElementById("webhookResult");
+      if (debug) {
+        debug.innerText = `Respuesta balance:\n${JSON.stringify(data, null, 2)}`;
+      }
+      renderConfigStatus("No se pudo interpretar el balance de la API. Revisa la respuesta en el panel oscuro.", true);
       return;
     }
 
-    display.innerText = `Saldo actual: $${balance}`;
+    display.innerText = `Saldo actual: $${balance.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     renderConfigStatus(
       ok ? "Balance consultado correctamente." : "Balance consultado con advertencias.",
       !ok
