@@ -1,13 +1,29 @@
 import requests
 from metodos.Token import obtener_token
 
-def get_channels(filters=None):
-    token = obtener_token()
+CHANNELS_URL = "https://api.liveconnect.chat/prod/channels/list"
+
+
+def get_channels(idc: int = None, filters: dict | None = None):
+    """
+    Lista los canales de la cuenta indicada por IDC.
+    Permite filtros opcionales (visible, estado, tipo, etc).
+    """
+
+    # 🔑 Obtener token por cuenta
+    token_data = obtener_token(idc)
+    if not token_data.get("ok"):
+        return token_data
+
+    token = token_data["token"]
+    account_idc = token_data["idc"]
+
     headers = {
         "Accept": "application/json",
         "PageGearToken": token
     }
 
+    # 🧹 Limpiar filtros vacíos
     clean_filters = {}
     if isinstance(filters, dict):
         for key, value in filters.items():
@@ -16,22 +32,40 @@ def get_channels(filters=None):
 
     try:
         res = requests.get(
-            "https://api.liveconnect.chat/prod/channels/list",
+            CHANNELS_URL,
             headers=headers,
             params=clean_filters,
             timeout=20
         )
     except requests.RequestException as e:
-        return {"ok": False, "error": f"Error de red en channels/list: {str(e)}"}
+        return {
+            "ok": False,
+            "error": f"Error de red en channels/list: {str(e)}"
+        }
 
     try:
         payload = res.json()
     except ValueError:
-        payload = {"raw_response": res.text}
+        return {
+            "ok": False,
+            "error": "Respuesta inválida del servidor",
+            "raw_response": res.text
+        }
 
-    if isinstance(payload, dict):
-        payload.setdefault("ok", res.ok)
-        payload["status_code"] = res.status_code
-        return payload
+    if not res.ok or payload.get("status") != 1:
+        return {
+            "ok": False,
+            "status_code": res.status_code,
+            "error": payload
+        }
 
-    return {"ok": res.ok, "status_code": res.status_code, "data": payload}
+    data = payload.get("data")
+
+    result = {
+        "ok": True,
+        "idc": account_idc,
+        "data": data,
+        "filters": clean_filters
+    }
+
+    return result
