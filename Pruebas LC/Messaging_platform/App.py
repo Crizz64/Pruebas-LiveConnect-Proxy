@@ -43,11 +43,13 @@ def config_set_webhook():
 @app.route("/config/getWebhook", methods=["POST"])
 def config_get_webhook():
     payload = request.get_json(silent=True) or {}
+
     id_canal = payload.get("id_canal")
-    if id_canal is None:
-        return jsonify({"ok": False, "error": "id_canal es requerido"}), 400
-    result = get_webhook(id_canal)
+    idc = payload.get("idc")
+
+    result = get_webhook(id_canal, idc)
     return jsonify(result), _status_from_result(result)
+
 
 @app.route("/config/balance", methods=["GET"])
 def config_balance():
@@ -56,9 +58,13 @@ def config_balance():
 
 @app.route("/config/channels", methods=["GET"])
 def config_channels():
+    idc = request.args.get("idc", type=int)
     filters = request.args.to_dict()
-    result = get_channels(filters)
+    filters.pop("idc", None)
+
+    result = get_channels(idc, filters)
     return jsonify(result), _status_from_result(result)
+
 
 @app.route("/messages/<conversation_id>", methods=["GET"])
 def api_get_messages(conversation_id):
@@ -101,8 +107,10 @@ def api_transfer():
 
 @app.route("/balance", methods=["GET"])
 def api_balance():
-    result = get_balance()
+    idc = request.args.get("idc", type=int)
+    result = get_balance(idc)
     return jsonify(result), _status_from_result(result)
+
 
 if __name__ == "__main__":
     app.run(port=3000)

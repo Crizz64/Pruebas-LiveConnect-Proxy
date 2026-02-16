@@ -1,4 +1,5 @@
-let currentConversation = null;
+let CURRENT_IDC = null; // null = cuenta por defecto
+
 const CHANNEL_TYPES = {
   1: "WhatsApp QR",
   2: "Sitio Web",
@@ -63,9 +64,24 @@ function findAmountDeep(node, depth = 0) {
   return null;
 }
 
-function getBalanceValue(payload) {
-  return findAmountDeep(payload);
+function getBalanceValue(data) {
+  if (!data || data.ok !== true) {
+    return null;
+  }
+
+  // Caso nuevo (backend normalizado)
+  if (typeof data.balance === "number") {
+    return data.balance;
+  }
+
+  // Caso legacy / directo desde PageGear
+  if (data.data && typeof data.data.balance === "number") {
+    return data.data.balance;
+  }
+
+  return null;
 }
+
 
 function getChannelTypeLabel(tipo) {
   return CHANNEL_TYPES[tipo] || `Tipo ${tipo}`;
@@ -221,17 +237,35 @@ async function transferConversation() {
 }
 
 async function checkBalance() {
-  const res = await fetch("/balance");
-  const data = await res.json();
-  const balance = getBalanceValue(data);
+  try {
+    let url = "/balance";
 
-  if (balance === null) {
-    alert("No fue posible interpretar el saldo. Revisa el panel de configuración.");
-    return;
+    if (CURRENT_IDC !== null) {
+      url += "?idc=" + encodeURIComponent(CURRENT_IDC);
+    }
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.ok) {
+      alert(data.error || "Error al consultar el balance");
+      return;
+    }
+
+    const balance = getBalanceValue(data);
+
+    if (balance === null) {
+      alert("No fue posible interpretar el saldo. Revisa el panel de configuración.");
+      return;
+    }
+
+    alert(`Saldo disponible (IDC ${data.idc}): $${balance}`);
+  } catch (err) {
+    console.error(err);
+    alert("Error de red al consultar el balance");
   }
-
-  alert(`Saldo disponible: $${balance}`);
 }
+
 
 /* =========================
    Configuraciones

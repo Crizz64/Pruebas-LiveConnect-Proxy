@@ -1,109 +1,72 @@
 import requests
 import time
+import threading
 
-# =========================
-# CONFIGURACIÓN DE CUENTAS
-# =========================
-# Idealmente esto debería venir de DB o variables de entorno
-ACCOUNTS = {
-    1: {
-        "cKey": "TU_CKEY_1",
-        "privateKey": "TU_SECRET_1"
-    },
-    # 2: {
-    #     "cKey": "TU_CKEY_2",
-    #     "privateKey": "TU_SECRET_2"
-    # }
-}
+# ========================
+# CONFIG
+# ========================
 
-DEFAULT_IDC = 1
-
-# =========================
-# CACHE DE TOKENS
-# =========================
-TOKENS = {}
-TOKEN_TTL = 28800 - 60  # 8 horas - 1 minuto
-
+KEY = ""
+SECRET = ""
 TOKEN_URL = "https://api.liveconnect.chat/prod/account/token"
 
+# ========================
+# CACHE
+# ========================
 
-def obtener_token(idc: int = None):
-    """
-    Retorna un PageGearToken válido para el IDC indicado.
-    Si no se pasa IDC, usa el DEFAULT_IDC (compatibilidad).
-    """
-    if idc is None:
-        idc = DEFAULT_IDC
+_TOKEN_CACHE = {}
+_LOCK = threading.Lock()
 
-    if idc not in ACCOUNTS:
-        return {
-            "ok": False,
-            "error": f"No existe configuración para IDC {idc}"
-        }
+# ========================
+# TOKEN HANDLER
+# ========================
+
+def obtener_token(force_refresh=False):
+    """
+    Obtiene y cachea el PageGearToken por KEY.
+    """
+    global _TOKEN_CACHE
 
     now = time.time()
-    cached = TOKENS.get(idc)
 
-    # 🔁 Reutilizar token si aún es válido
-    if cached and now < cached["expira"]:
-        return {
-            "ok": True,
-            "token": cached["token"],
-            "idc": idc,
-            "cached": True
-        }
+    with _LOCK:
+        cached = _TOKEN_CACHE.get(KEY)
 
-    creds = ACCOUNTS[idc]
+        # Reutilizar token válido
+        if (
+            not force_refresh
+            and cached
+            and cached.get("token")
+            and now < cached.get("expires", 0)
+        ):
+            return cached["token"]
 
-    try:
-        res = requests.post(
+        # Solicitar token nuevo
+        response = requests.post(
             TOKEN_URL,
-            json={
-                "cKey": creds["cKey"],
-                "privateKey": creds["privateKey"]
-            },
-            timeout=20
+            json={"cKey": KEY, "privateKey": SECRET},
+            timeout=15
         )
-    except requests.RequestException as e:
-        return {"ok": False, "error": f"Error de red en token: {str(e)}"}
 
-    try:
-        payload = res.json()
-    except ValueError:
-        return {
-            "ok": False,
-            "error": "Respuesta inválida al generar token",
-            "raw_response": res.text
+        if not response.ok:
+            raise RuntimeError(
+                f"Error obteniendo token ({response.status_code}): {response.text}"
+            )
+
+        data = response.json()
+        token = data.get("PageGearToken")
+
+        if not token:
+            raise RuntimeError("Respuesta inválida: PageGearToken no presente")
+
+        # Expiración segura (8h - 2 min)
+        expires = now + (8 * 60 * 60) - 120
+
+        _TOKEN_CACHE[KEY] = {
+            "token": token,
+            "expires": expires
         }
 
-    if not res.ok or payload.get("status") != 1:
-        return {
-            "ok": False,
-            "error": payload
-        }
+        print(f"🔑 Token generado para KEY {KEY[:6]}…")
 
-    token = payload.get("PageGearToken")
-    data = payload.get("data", {})
-    returned_idc = data.get("idc")
-
-    # 🔒 Validación cruzada
-    if str(returned_idc) != str(idc):
-        return {
-            "ok": False,
-            "error": f"IDC mismatch: esperado {idc}, recibido {returned_idc}"
-        }
-
-    # 💾 Cachear token
-    TOKENS[idc] = {
-        "token": token,
-        "expira": now + TOKEN_TTL
-    }
-
-    print(f"🔑 Token generado para IDC {idc}: {token[:18]}...")
-
-    return {
-        "ok": True,
-        "token": token,
-        "idc": idc,
-        "cached": False
-    }
+        return token
